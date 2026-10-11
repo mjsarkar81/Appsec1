@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OWASP Risk Assessment Calculator</title>
+<style>
+:root {
+  --yellow: #fff200; --green: #92d050; --bluegrey: #a6b9ce;
+  --line: #d1d5db; --text: #172033; --muted: #5b6472;
+  --input: #fff2cc; --navy: #1f4e78;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: #f3f4f6; color: var(--text);
+  font-family: Arial, Helvetica, sans-serif; font-size: 14px;
+}
+main { max-width: 1500px; margin: 20px auto; padding: 0 16px 28px; }
+.title {
+  background: var(--yellow); color: #000; text-align: center;
+  font-size: clamp(22px, 2vw, 30px); font-weight: 700;
+  padding: 14px 12px; border: 1px solid #dfd200;
+}
+.instructions {
+  background: #fff9c4; padding: 10px 12px; color: #374151;
+  font-style: italic; border: 1px solid #ece6a5; border-top: 0;
+}
+.panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 16px; }
+.panel { min-width: 0; background: white; border: 1px solid var(--line); }
+.section-title {
+  background: var(--green); padding: 9px 12px; color: #000;
+  font-size: 17px; font-weight: 700;
+}
+.group-title {
+  background: var(--bluegrey); font-weight: 700; font-style: italic;
+  padding: 8px 12px; color: #172033;
+}
+.factor-head, .factor-row {
+  display: grid; grid-template-columns: minmax(130px, 0.85fr) minmax(180px, 1.6fr) 58px;
+  align-items: stretch;
+}
+.factor-head {
+  background: var(--navy); color: #fff; font-weight: 700; text-align: center;
+  font-size: 12px; padding: 8px 8px;
+}
+.factor-row { border-bottom: 1px solid #e5e7eb; min-height: 54px; }
+.factor-name { padding: 10px 9px; display: flex; align-items: center; line-height: 1.25; }
+.select-cell { background: var(--input); padding: 5px; border-left: 1px solid #e5c66b; border-right: 1px solid #e5c66b; display:flex; align-items:center; }
+select {
+  width: 100%; min-width: 0; border: 1px solid #d7bd62; border-radius: 3px;
+  background: #fffdf5; padding: 8px 6px; color: #111827; font: inherit;
+}
+select:focus { outline: 2px solid #2563eb; outline-offset: 1px; }
+select:disabled { color: #374151; background: #ececec; opacity: 1; }
+select.invalid { border: 2px solid #dc2626; background: #fff1f2; }
+.score-cell { display:flex; align-items:center; justify-content:center; background:#f3f4f6; font-weight:700; font-size: 15px; }
+.summary { margin-top: 16px; display:grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap:10px; }
+.metric { border: 1px solid #b8bec7; background: #fff; min-height: 87px; }
+.metric .label { background: #e5e7eb; padding: 8px; font-weight: 700; }
+.metric .value { padding: 10px 8px; font-size: 22px; font-weight: 700; text-align:center; min-height: 48px; }
+.metric.risk-score .label, .metric.risk-score .value { background:#a6a6a6; color:#000; }
+.metric.severity .label, .metric.severity .value { background:var(--yellow); color:#000; }
+.status {
+  margin-top: 10px; padding: 11px 12px; background: #e5e7eb;
+  border: 1px solid #d1d5db; font-weight: 700;
+}
+.status.good { background:#dcfce7; border-color:#86efac; color:#166534; }
+.status.error { background:#fff1f2; border-color:#fda4af; color:#9f1239; }
+.actions { display:flex; gap:10px; margin: 12px 0 0; flex-wrap: wrap; }
+button {
+  border: 1px solid #444; border-radius: 4px; padding: 10px 18px;
+  font-weight: 700; font-size: 14px; cursor:pointer;
+}
+#saveBtn { background:#1f4e78; border-color:#1f4e78; color:#fff; }
+#resetBtn { background:#f3f4f6; color:#172033; }
+button:focus { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.small-note { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.matrix-wrap { margin-top: 18px; border:1px solid #b8bec7; background:#fff; }
+.matrix-title { padding:9px; text-align:center; background:#a6a6a6; font-weight:700; }
+table { border-collapse:collapse; width:100%; table-layout:fixed; }
+th, td { border:1px solid #fff; padding:9px 8px; text-align:center; }
+th { background:#d9e2f3; }
+td.row-head { background:#f3f4f6; font-weight:700; }
+.note { background:#92d050; } .low { background:#fff200; } .moderate { background:#ffc000; }
+.high { background:#ff0000; color:#111; } .critical { background:#7030a0; color:#fff; }
+.formula-note { background:#f3f4f6; padding:10px 12px; margin-top:10px; color:#374151; line-height:1.45; }
+@media (max-width: 900px) {
+  .panels { grid-template-columns:1fr; }
+  .summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 520px) {
+  main { padding:0 8px 18px; margin-top:8px; }
+  .factor-head, .factor-row { grid-template-columns: minmax(95px,0.8fr) minmax(140px,1.5fr) 42px; }
+  .factor-name { padding:7px 5px; font-size:12px; }
+  select { font-size:12px; padding:7px 4px; }
+  .summary { grid-template-columns:1fr 1fr; }
+  th,td { padding:6px 3px; font-size:12px; }
+}
+.print-selection { display:none; }
+.assessment-meta { display:none; }
+@page { size: A4 landscape; margin: 7mm; }
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  html, body { width:100%; margin:0 !important; padding:0 !important; background:#fff !important; font-size:8pt; }
+  main { width:100%; max-width:none; margin:0; padding:0; }
+  .title { font-size:18pt; padding:5px 8px; }
+  .instructions { font-size:7pt; padding:4px 7px; }
+  .assessment-meta { display:block; font-size:7pt; text-align:right; padding:3px 1px 0; color:#374151; }
+  .panels { grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important; gap:8px; margin-top:7px; align-items:start; }
+  .panel { min-width:0; break-inside:avoid; }
+  .section-title { font-size:10pt; padding:5px 7px; }
+  .group-title { font-size:8pt; padding:4px 6px; }
+  .factor-head, .factor-row { grid-template-columns:minmax(75px,.85fr) minmax(100px,1.6fr) 30px; }
+  .factor-head { font-size:7pt; padding:4px 3px; }
+  .factor-row { min-height:0; }
+  .factor-name { font-size:7pt; padding:3px 4px; line-height:1.12; overflow-wrap:anywhere; }
+  .select-cell { padding:2px 3px; align-items:center; }
+  .select-cell select { display:none !important; }
+  .print-selection { display:block; width:100%; font-size:6.7pt; line-height:1.12; color:#111; overflow-wrap:anywhere; }
+  .score-cell { font-size:8pt; }
+  .summary { grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; margin-top:7px; }
+  .metric { min-height:0; break-inside:avoid; }
+  .metric .label { font-size:7.3pt; padding:4px 5px; }
+  .metric .value { font-size:13pt; min-height:0; padding:5px 4px; }
+  .matrix-wrap { margin-top:8px; break-inside:avoid; }
+  .matrix-title { font-size:8pt; padding:5px; }
+  th, td { font-size:7pt; padding:4px 5px; }
+  .formula-note { font-size:7pt; padding:5px 7px; margin-top:6px; }
+  .status, .actions, .small-note { display:none !important; }
+  select.invalid { border:0 !important; background:transparent !important; }
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="title">OWASP Risk Assessment Calculator</div>
+  <div class="instructions">Choose one score from every dropdown. Each option includes its score. Likelihood and Impact are calculated as the average of eight factors each.</div>
+  <div class="assessment-meta" id="assessmentMeta"></div>
+
+  <div class="panels">
+    <section class="panel" aria-labelledby="likelihoodTitle">
+      <div class="section-title" id="likelihoodTitle">Likelihood factors</div>
+      <div class="group-title">Threat Agent Factors</div>
+      <div class="factor-head"><span>Factor</span><span>Select score ▼</span><span>Score</span></div>
+      <div id="threatRows"></div>
+      <div class="group-title">Vulnerability Factors</div>
+      <div id="vulnerabilityRows"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="impactTitle">
+      <div class="section-title" id="impactTitle">Impact factors</div>
+      <div class="group-title">Technical Impact Factors</div>
+      <div class="factor-head"><span>Factor</span><span>Select score ▼</span><span>Score</span></div>
+      <div id="technicalRows"></div>
+      <div class="group-title">Business Impact Factors</div>
+      <div id="businessRows"></div>
+    </section>
+  </div>
+
+  <section class="summary" aria-label="Calculated results">
+    <div class="metric"><div class="label">Likelihood score</div><div class="value" id="likelihoodScore">—</div></div>
+    <div class="metric"><div class="label">Impact score</div><div class="value" id="impactScore">—</div></div>
+    <div class="metric risk-score"><div class="label">Risk score (Likelihood × Impact)</div><div class="value" id="riskScore">—</div></div>
+    <div class="metric severity"><div class="label">Overall risk severity</div><div class="value" id="severity">Incomplete</div></div>
+  </section>
+
+  <div class="status" id="status" role="status" aria-live="polite">Incomplete — select all 16 dropdowns.</div>
+  <div class="actions">
+    <button id="saveBtn" type="button">Save Assessment as PDF &amp; Lock</button>
+    <button id="resetBtn" type="button">Reset to Initial State</button>
+  </div>
+  <div class="small-note">Saving requires all 16 selections. The assessment is saved and locked, then the browser print dialog opens. Choose “Save as PDF” to export this layout as a PDF. After locking, use “Export PDF Again” to retry or create another PDF copy. Reset clears the saved state, removes all selections, and unlocks the form.</div>
+
+  <div class="matrix-wrap">
+    <div class="matrix-title">OWASP risk matrix (Likelihood × Impact)</div>
+    <table aria-label="Overall risk severity matrix">
+      <thead><tr><th>Likelihood / Impact</th><th>Low (&lt;3)</th><th>Moderate (3 to &lt;6)</th><th>High (6–9)</th></tr></thead>
+      <tbody>
+        <tr><td class="row-head">Low (&lt;3)</td><td class="note">Note</td><td class="low">Low</td><td class="moderate">Moderate</td></tr>
+        <tr><td class="row-head">Moderate (3 to &lt;6)</td><td class="low">Low</td><td class="moderate">Moderate</td><td class="high">High</td></tr>
+        <tr><td class="row-head">High (6–9)</td><td class="moderate">Moderate</td><td class="high">High</td><td class="critical">Critical</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="formula-note"><strong>Calculation:</strong> Likelihood = total score of 8 likelihood factors ÷ 8. Impact = total score of 8 impact factors ÷ 8. Risk Score = Likelihood × Impact. Severity is determined by the matrix above, using Low &lt; 3, Moderate 3 to &lt; 6, and High 6–9.</div>
+</main>
+<script>
+const CONFIG = {"likelihood": [{"factor": "Skills required", "group": "Threat Agent Factors", "options": ["No technical skills required [1]", "Some technical skills [3]", "Advanced computer user [5]", "Network and programming skills [6]", "Security penetration skills [9]"]}, {"factor": "Motive", "group": "Threat Agent Factors", "options": ["Low or no reward [1]", "Possible reward [4]", "High reward [9]"]}, {"factor": "Opportunity", "group": "Threat Agent Factors", "options": ["Full access or expensive resources required [0]", "Special access or resources required [4]", "Some access or resources required [7]", "No access or resources required [9]"]}, {"factor": "Population size", "group": "Threat Agent Factors", "options": ["Developers [2]", "System administrators [4]", "Intranet users [5]", "Partners [6]", "Anonymous Internet users [9]"]}, {"factor": "Ease of discovery", "group": "Vulnerability Factors", "options": ["Practically impossible [1]", "Difficult [3]", "Easy [7]", "Automated tools available [9]"]}, {"factor": "Ease of exploit", "group": "Vulnerability Factors", "options": ["Theoretical [1]", "Difficult [3]", "Easy [5]", "Automated tools available [9]"]}, {"factor": "Awareness", "group": "Vulnerability Factors", "options": ["Unknown [1]", "Hidden [4]", "Obvious [6]", "Public knowledge [9]"]}, {"factor": "Intrusion detection", "group": "Vulnerability Factors", "options": ["Active detection in application [1]", "Logged and reviewed [3]", "Logged without review [8]", "Not logged [9]"]}], "impact": [{"factor": "Loss of confidentiality", "group": "Technical Impact Factors", "options": ["No impact [0]", "Minimal non-sensitive data disclosed [2]", "Minimal critical / extensive non-sensitive data disclosed [6]", "Extensive critical data disclosed [7]", "All data disclosed [9]"]}, {"factor": "Loss of integrity", "group": "Technical Impact Factors", "options": ["No impact [0]", "Minimal slightly corrupt data [1]", "Extensive slightly corrupt data [3]", "Minimal seriously corrupt data [5]", "Extensive seriously corrupt data [7]", "All data totally corrupt [9]"]}, {"factor": "Loss of availability", "group": "Technical Impact Factors", "options": ["No availability impact [0]", "Minimal secondary services interrupted [1]", "Primary feature(s) interrupted [5]", "Extensive primary services interrupted [7]", "All services completely lost [9]"]}, {"factor": "Loss of accountability", "group": "Technical Impact Factors", "options": ["No impact [0]", "Minimal non-critical activities untraceable [1]", "Extensive non-critical activities untraceable [3]", "Minimal critical activities untraceable [5]", "Extensive critical activities untraceable [7]", "All activities effectively untraceable [9]"]}, {"factor": "Financial damage", "group": "Business Impact Factors", "options": ["No financial damage [0]", "Less than the cost to fix [1]", "Minor effect on annual profit [3]", "Significant effect on annual profit [7]", "Bankruptcy [9]"]}, {"factor": "Reputation damage", "group": "Business Impact Factors", "options": ["No damage [0]", "Minimal damage [1]", "Loss of major accounts [4]", "Loss of goodwill [5]", "Brand damage [9]"]}, {"factor": "Non-compliance", "group": "Business Impact Factors", "options": ["No compliance impact [0]", "Minor violation [2]", "Clear violation [5]", "High-profile violation [7]", "Formal regulatory action [9]"]}, {"factor": "Privacy violation", "group": "Business Impact Factors", "options": ["No privacy impact [0]", "One individual, non-sensitive information [1]", "Hundreds of individuals, non-sensitive information [3]", "One individual, sensitive information [5]", "Hundreds of individuals, sensitive information [7]", "All individuals, all private information [9]"]}]};
+const STORAGE_KEY = "owasp-risk-assessment-calculator-v1";
+let locked = false;
+
+function scoreFromLabel(label) {
+  const match = String(label || "").match(/\[(-?\d+(?:\.\d+)?)\]\s*$/);
+  return match ? Number(match[1]) : null;
+}
+function makeRow(item, side, index) {
+  const row = document.createElement("div");
+  row.className = "factor-row";
+  const name = document.createElement("div");
+  name.className = "factor-name";
+  name.textContent = item.factor;
+  const selectCell = document.createElement("div");
+  selectCell.className = "select-cell";
+  const select = document.createElement("select");
+  select.id = `${side}-${index}`;
+  select.dataset.side = side;
+  select.dataset.factor = item.factor;
+  select.setAttribute("aria-label", `${item.factor} score`);
+  select.required = true;
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "— Select score —";
+  select.appendChild(placeholder);
+  item.options.forEach((option) => {
+    const opt = document.createElement("option");
+    opt.value = option;
+    opt.textContent = option;
+    select.appendChild(opt);
+  });
+  select.addEventListener("change", () => {
+    select.classList.remove("invalid");
+    updateResults();
+  });
+  const printSelection = document.createElement("div");
+  printSelection.className = "print-selection";
+  printSelection.textContent = "Not selected";
+  selectCell.append(select, printSelection);
+  const score = document.createElement("div");
+  score.className = "score-cell";
+  score.id = `score-${side}-${index}`;
+  score.textContent = "—";
+  row.append(name, selectCell, score);
+  return row;
+}
+function renderRows() {
+  const containers = {
+    threatRows: CONFIG.likelihood.slice(0, 4),
+    vulnerabilityRows: CONFIG.likelihood.slice(4),
+    technicalRows: CONFIG.impact.slice(0, 4),
+    businessRows: CONFIG.impact.slice(4)
+  };
+  Object.entries(containers).forEach(([containerId, items]) => {
+    const container = document.getElementById(containerId);
+    items.forEach((item) => {
+      const side = containerId.includes("Rows") && (containerId === "threatRows" || containerId === "vulnerabilityRows") ? "likelihood" : "impact";
+      const index = (side === "likelihood" ? CONFIG.likelihood : CONFIG.impact).indexOf(item);
+      container.appendChild(makeRow(item, side, index));
+    });
+  });
+}
+function selectedScores(side) {
+  return Array.from(document.querySelectorAll(`select[data-side="${side}"]`)).map((select) => ({
+    factor: select.dataset.factor,
+    selection: select.value,
+    score: select.value ? scoreFromLabel(select.value) : null
+  }));
+}
+function meanFor(side) {
+  const rows = selectedScores(side);
+  if (rows.length !== 8 || rows.some((row) => row.score === null || Number.isNaN(row.score))) return null;
+  return rows.reduce((total, row) => total + row.score, 0) / 8;
+}
+function severityFor(likelihood, impact) {
+  if (likelihood < 3) {
+    if (impact < 3) return "Note";
+    if (impact < 6) return "Low";
+    return "Moderate";
+  }
+  if (likelihood < 6) {
+    if (impact < 3) return "Low";
+    if (impact < 6) return "Moderate";
+    return "High";
+  }
+  if (impact < 3) return "Moderate";
+  if (impact < 6) return "High";
+  return "Critical";
+}
+function fmt(n, decimals = 3) {
+  if (n === null || !Number.isFinite(n)) return "—";
+  return n.toFixed(decimals).replace(/\.?0+$/, "");
+}
+function setStatus(message, kind = "") {
+  const element = document.getElementById("status");
+  element.textContent = message;
+  element.className = `status${kind ? " " + kind : ""}`;
+}
+function updateResults() {
+  document.querySelectorAll("select[data-side]").forEach((select) => {
+    const printed = select.parentElement.querySelector(".print-selection");
+    if (printed) printed.textContent = select.value || "Not selected";
+  });
+  const lRows = selectedScores("likelihood");
+  const iRows = selectedScores("impact");
+  lRows.forEach((row, index) => {
+    document.getElementById(`score-likelihood-${index}`).textContent = row.score === null ? "—" : fmt(row.score, 0);
+  });
+  iRows.forEach((row, index) => {
+    document.getElementById(`score-impact-${index}`).textContent = row.score === null ? "—" : fmt(row.score, 0);
+  });
+  const likelihood = meanFor("likelihood");
+  const impact = meanFor("impact");
+  document.getElementById("likelihoodScore").textContent = fmt(likelihood, 3);
+  document.getElementById("impactScore").textContent = fmt(impact, 3);
+  const risk = likelihood === null || impact === null ? null : likelihood * impact;
+  document.getElementById("riskScore").textContent = fmt(risk, 5);
+  document.getElementById("severity").textContent = risk === null ? "Incomplete" : severityFor(likelihood, impact);
+
+  if (locked) {
+    setStatus("Saved & locked — reset the form to start a new assessment.", "good");
+  } else if (lRows.some((row) => row.score === null) || iRows.some((row) => row.score === null)) {
+    const lCount = lRows.filter((row) => row.score !== null).length;
+    const iCount = iRows.filter((row) => row.score !== null).length;
+    setStatus(`Incomplete — Likelihood ${lCount}/8 selected; Impact ${iCount}/8 selected.`);
+  } else {
+    setStatus("All 16 selections are complete. Review the scores, then Save & Lock the assessment.", "good");
+  }
+}
+function currentAssessment() {
+  const likelihood = meanFor("likelihood");
+  const impact = meanFor("impact");
+  const risk = likelihood === null || impact === null ? null : likelihood * impact;
+  return {
+    title: "OWASP Risk Assessment Calculator",
+    savedAt: new Date().toISOString(),
+    likelihoodFactors: selectedScores("likelihood"),
+    impactFactors: selectedScores("impact"),
+    likelihoodScore: likelihood,
+    impactScore: impact,
+    riskScore: risk,
+    overallRiskSeverity: risk === null ? null : severityFor(likelihood, impact)
+  };
+}
+function setLocked(value) {
+  locked = value;
+  document.querySelectorAll("select[data-side]").forEach((select) => {
+    select.disabled = value;
+  });
+  // Keep the PDF action available after locking, so a user can retry the export if the print dialog was cancelled.
+  document.getElementById("saveBtn").disabled = false;
+  document.getElementById("saveBtn").textContent = value ? "Export PDF Again" : "Save Assessment as PDF & Lock";
+}
+function formatSavedDate(value) {
+  const date = value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date().toLocaleString() : date.toLocaleString();
+}
+function setAssessmentMeta(value) {
+  const element = document.getElementById("assessmentMeta");
+  element.textContent = value ? `Assessment saved: ${formatSavedDate(value)}` : "";
+}
+function saveAssessment() {
+  const selects = Array.from(document.querySelectorAll("select[data-side]"));
+  const missing = selects.filter((select) => !select.value);
+  if (missing.length) {
+    selects.forEach((select) => {
+      if (!select.value) select.classList.add("invalid");
+    });
+    setStatus(`Cannot save yet — select all 16 factors. ${missing.length} selection(s) remain.`, "error");
+    missing[0].focus();
+    return;
+  }
+  const payload = currentAssessment();
+  payload.savedAt = new Date().toISOString();
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); } catch (error) { /* Browser storage may be disabled; PDF export still works. */ }
+  setAssessmentMeta(payload.savedAt);
+  setLocked(true);
+  updateResults();
+  setStatus("Assessment saved and locked. In the print dialog, choose Save as PDF. You can use Export PDF Again if you need another copy.", "good");
+  // The browser print dialog provides a faithful PDF export of this layout.
+  window.print();
+}
+function resetAssessment() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch (error) { /* ignore storage restriction */ }
+  setAssessmentMeta(null);
+  setLocked(false);
+  document.querySelectorAll("select[data-side]").forEach((select) => {
+    select.value = "";
+    select.classList.remove("invalid");
+  });
+  updateResults();
+  setStatus("Reset complete — all selections cleared; calculator is back to its initial state.");
+}
+function restoreSaved() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (error) { saved = null; }
+  if (!saved || !saved.likelihoodFactors || !saved.impactFactors) return;
+  saved.likelihoodFactors.forEach((item, index) => {
+    const select = document.getElementById(`likelihood-${index}`);
+    if (select && Array.from(select.options).some((option) => option.value === item.selection)) select.value = item.selection;
+  });
+  saved.impactFactors.forEach((item, index) => {
+    const select = document.getElementById(`impact-${index}`);
+    if (select && Array.from(select.options).some((option) => option.value === item.selection)) select.value = item.selection;
+  });
+  setAssessmentMeta(saved.savedAt);
+  setLocked(true);
+  updateResults();
+  setStatus("A saved assessment was restored and remains locked. Reset to clear it.", "good");
+}
+renderRows();
+document.getElementById("saveBtn").addEventListener("click", saveAssessment);
+document.getElementById("resetBtn").addEventListener("click", resetAssessment);
+restoreSaved();
+updateResults();
+</script>
+</body>
+</html>
